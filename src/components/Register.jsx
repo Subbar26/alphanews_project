@@ -1,7 +1,10 @@
+"use client"
+
 // Component: FormularioRegistro
 import { useState } from "react"
 import { Eye, EyeOff, CheckCircle2 } from "lucide-react"
 import { Link } from "react-router-dom"
+import API from "../api"
 
 export default function Register() {
   const [datosFormulario, setDatosFormulario] = useState({
@@ -28,6 +31,7 @@ export default function Register() {
   const [mostrarConfirmarContrasena, setMostrarConfirmarContrasena] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [registroExitoso, setRegistroExitoso] = useState(false)
+  const [errorGeneral, setErrorGeneral] = useState("")
 
   const validarFormulario = () => {
     let esValido = true
@@ -117,17 +121,21 @@ export default function Register() {
 
     if (validarFormulario()) {
       setEnviando(true)
+      setErrorGeneral("")
 
       try {
         // Simulación de llamada a API
         await new Promise((resolve) => setTimeout(resolve, 1500))
 
-        // En una aplicación real, aquí enviarías los datos a tu API
-        // const respuesta = await fetch('/api/registro', {
-        //   method: 'POST',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify(datosFormulario)
-        // })
+        // Llamada real al endpoint de registro
+        await API.post("/register", {
+          nombre: datosFormulario.nombre,
+          username: datosFormulario.nombreUsuario,
+          email: datosFormulario.email,
+          clave: datosFormulario.contrasena,
+          telefono: datosFormulario.telefono,
+          descripcion: datosFormulario.descripcion
+        })
 
         setRegistroExitoso(true)
         // Resetear formulario después del envío exitoso
@@ -141,6 +149,8 @@ export default function Register() {
           telefono: "",
         })
       } catch (error) {
+        // si el back envía `{ msg: "..." }`, lo capturamos
+        setErrorGeneral(error.response?.data?.msg || "Error inesperado")
         console.error("Error de registro:", error)
       } finally {
         setEnviando(false)
@@ -193,7 +203,7 @@ export default function Register() {
                   <p className="text-gray-600">Explora nuestras noticias o comienza a colaborar</p>
                 </div>
                 <div className="space-y-4">
-                   <Link
+                  <Link
                     to="/login"
                     className="w-full block text-center py-3 px-4 bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold rounded-lg transition duration-200"
                   >
@@ -247,11 +257,7 @@ export default function Register() {
               </div>
             </div>
             <div className="w-full h-full">
-              <img
-                src="/photo.png"
-                alt="Sala de redacción de noticias"
-                className="w-full h-full object-cover"
-              />
+              <img src="/photo.png" alt="Sala de redacción de noticias" className="w-full h-full object-cover" />
             </div>
           </div>
 
@@ -262,6 +268,39 @@ export default function Register() {
                 <h2 className="text-2xl font-bold text-gray-800">Crea tu Cuenta</h2>
                 <p className="text-gray-600 mt-1">Únete a nuestra comunidad de noticias</p>
               </div>
+
+              {errorGeneral && (
+                <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-red-800">Error en el registro</h3>
+                    <p className="mt-1 text-sm text-red-700">{errorGeneral}</p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setErrorGeneral("")}
+                      className="inline-flex text-red-400 hover:text-red-600 focus:outline-none focus:text-red-600"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path
+                          fillRule="evenodd"
+                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <form onSubmit={manejarEnvio} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

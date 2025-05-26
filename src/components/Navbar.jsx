@@ -1,14 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useContext } from "react"
 import { Menu, X } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
+import { AuthContext } from "../contexts/AuthContext"
 
 export default function Navbar() {
     const [menuAbierto, setMenuAbierto] = useState(false)
+    const { token, logout } = useContext(AuthContext)
+    const navigate = useNavigate()
 
     const alternarMenu = () => {
         setMenuAbierto(!menuAbierto)
+    }
+
+    const handleLogout = () => {
+        logout()
+        navigate('/')
     }
 
     return (
@@ -44,18 +52,29 @@ export default function Navbar() {
                         >
                             Colaborar
                         </a>
-                        <Link
-                            to="/login"
-                            className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-md text-sm font-medium transition-colors ml-2"
-                        >
-                            Iniciar Sesión
-                        </Link>
-                        <Link
-                            to="/registro"
-                            className="bg-gray-100 text-blue-600 hover:bg-gray-200 border border-blue-600 px-4 py-2 rounded-md text-sm font-medium transition-colors"
-                        >
-                            Registro
-                        </Link>
+                        {token ? (
+                            <button
+                                onClick={handleLogout}
+                                className="bg-red-500 text-white hover:bg-red-600 px-4 py-2 rounded-md text-sm font-medium transition-colors ml-2"
+                            >
+                                Cerrar Sesión
+                            </button>
+                        ) : (
+                            <>
+                                <Link
+                                    to="/login"
+                                    className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-md text-sm font-medium transition-colors ml-2"
+                                >
+                                    Iniciar Sesión
+                                </Link>
+                                <Link
+                                    to="/registro"
+                                    className="bg-gray-100 text-blue-600 hover:bg-gray-200 border border-blue-600 px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                                >
+                                    Registro
+                                </Link>
+                            </>
+                        )}
                     </div>
 
                     {/* Botón de menú móvil */}
@@ -94,18 +113,29 @@ export default function Navbar() {
                         >
                             Colaborar
                         </a>
-                        <a
-                            href="#"
-                            className="block px-3 py-2 rounded-md text-base font-medium bg-blue-600 text-white hover:bg-blue-700 mt-2"
-                        >
-                            Iniciar Sesión
-                        </a>
-                        <a
-                            href="#"
-                            className="block px-3 py-2 rounded-md text-base font-medium bg-gray-100 text-blue-600 hover:bg-gray-200 border border-blue-600"
-                        >
-                            Registro
-                        </a>
+                        {token ? (
+                            <button
+                                onClick={handleLogout}
+                                className="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-red-500 text-white hover:bg-red-600 mt-2"
+                            >
+                                Cerrar Sesión
+                            </button>
+                        ) : (
+                            <>
+                                <Link
+                                    to="/login"
+                                    className="block px-3 py-2 rounded-md text-base font-medium bg-blue-600 text-white hover:bg-blue-700 mt-2"
+                                >
+                                    Iniciar Sesión
+                                </Link>
+                                <Link
+                                    to="/registro"
+                                    className="block px-3 py-2 rounded-md text-base font-medium bg-gray-100 text-blue-600 hover:bg-gray-200 border border-blue-600 mt-2"
+                                >
+                                    Registro
+                                </Link>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

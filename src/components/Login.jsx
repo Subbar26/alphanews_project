@@ -1,10 +1,15 @@
 "use client"
 
-import { useState } from "react"
-import { Eye, EyeOff, CheckCircle2, User, Lock } from "lucide-react"
-import { Link } from "react-router-dom"
+import { useState, useContext } from "react"
+import { Eye, EyeOff, CheckCircle2, User, Lock } from 'lucide-react'
+import { Link, useNavigate } from "react-router-dom"
+import API from "../api"
+import { AuthContext } from "../contexts/AuthContext"
 
 export default function Login() {
+  const navigate = useNavigate()
+  const { login } = useContext(AuthContext)
+
   const [datosFormulario, setDatosFormulario] = useState({
     identificador: "", // Puede ser email o nombre de usuario
     contrasena: "",
@@ -15,6 +20,7 @@ export default function Login() {
     contrasena: "",
   })
 
+  const [errorGeneral, setErrorGeneral] = useState("")
   const [mostrarContrasena, setMostrarContrasena] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [loginExitoso, setLoginExitoso] = useState(false)
@@ -54,27 +60,23 @@ export default function Login() {
 
   const manejarEnvio = async (e) => {
     e.preventDefault()
+    setErrorGeneral("")
+    setErrores({ identificador: "", contrasena: "" }) 
+    if (!validarFormulario()) return
 
-    if (validarFormulario()) {
-      setEnviando(true)
+    setEnviando(true)
+    try {
+      const { data } = await API.post('/login', {
+        username: datosFormulario.identificador,
+        clave: datosFormulario.contrasena
+      })
 
-      try {
-        // Simulación de llamada a API
-        await new Promise((resolve) => setTimeout(resolve, 1500))
-
-        // En una aplicación real, aquí enviarías los datos a tu API
-        // const respuesta = await fetch('/api/login', {
-        //   method: 'POST',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify(datosFormulario)
-        // })
-
-        setLoginExitoso(true)
-      } catch (error) {
-        console.error("Error de inicio de sesión:", error)
-      } finally {
-        setEnviando(false)
-      }
+      login(data.token)
+      setLoginExitoso(true)
+    } catch (err) {
+      setErrorGeneral(err.response?.data?.msg || 'Error al iniciar sesión')
+    } finally {
+      setEnviando(false)
     }
   }
 
@@ -89,7 +91,7 @@ export default function Login() {
             <h2 className="text-2xl font-bold text-gray-800 mb-2">¡Inicio de Sesión Exitoso!</h2>
             <p className="text-gray-600 mb-6">Has iniciado sesión correctamente. Bienvenido de nuevo a AlphaNews.</p>
             <button
-              onClick={() => (window.location.href = "/")}
+              onClick={() => navigate('/principal')}
               className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200 shadow-md hover:shadow-lg"
             >
               Ir al Panel Principal
@@ -154,6 +156,39 @@ export default function Login() {
                 <p className="text-gray-600 mt-1">Accede a tu cuenta de AlphaNews</p>
               </div>
 
+              {errorGeneral && (
+                <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-red-800">Error de autenticación</h3>
+                    <p className="mt-1 text-sm text-red-700">{errorGeneral}</p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setErrorGeneral("")}
+                      className="inline-flex text-red-400 hover:text-red-600 focus:outline-none focus:text-red-600"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path
+                          fillRule="evenodd"
+                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={manejarEnvio} className="space-y-6">
                 <div>
                   <label htmlFor="identificador" className="block text-sm font-medium text-gray-700 mb-1">
@@ -169,11 +204,10 @@ export default function Login() {
                       name="identificador"
                       value={datosFormulario.identificador}
                       onChange={manejarCambio}
-                      className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                        errores.identificador
-                          ? "border-red-500 focus:ring-red-200"
-                          : "border-gray-300 focus:ring-blue-200"
-                      }`}
+                      className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${errores.identificador
+                        ? "border-red-500 focus:ring-red-200"
+                        : "border-gray-300 focus:ring-blue-200"
+                        }`}
                       placeholder="maria_reportera o maria@ejemplo.com"
                     />
                   </div>
@@ -199,9 +233,8 @@ export default function Login() {
                       name="contrasena"
                       value={datosFormulario.contrasena}
                       onChange={manejarCambio}
-                      className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                        errores.contrasena ? "border-red-500 focus:ring-red-200" : "border-gray-300 focus:ring-blue-200"
-                      }`}
+                      className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 ${errores.contrasena ? "border-red-500 focus:ring-red-200" : "border-gray-300 focus:ring-blue-200"
+                        }`}
                       placeholder="••••••••"
                     />
                     <button
@@ -237,9 +270,8 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={enviando}
-                    className={`w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200 shadow-md hover:shadow-lg ${
-                      enviando ? "opacity-70 cursor-not-allowed" : ""
-                    }`}
+                    className={`w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200 shadow-md hover:shadow-lg ${enviando ? "opacity-70 cursor-not-allowed" : ""
+                      }`}
                   >
                     {enviando ? (
                       <span className="flex items-center justify-center">
@@ -335,8 +367,8 @@ export default function Login() {
 
               <p className="mt-6 text-center text-sm text-gray-600">
                 ¿No tienes una cuenta?{" "}
-                <Link to="/registro" 
-                className="font-medium text-blue-600 hover:text-blue-700">
+                <Link to="/registro"
+                  className="font-medium text-blue-600 hover:text-blue-700">
                   Regístrate ahora
                 </Link>
               </p>
