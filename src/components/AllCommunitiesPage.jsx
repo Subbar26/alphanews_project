@@ -239,22 +239,6 @@ export default function AllCommunitiesPage() {
               </div>
             </div>
           </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 hover:shadow-xl hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-slate-900 group-hover:text-orange-600 transition-colors duration-300">
-                  {stats.totalNoticias}
-                </p>
-                <p className="text-sm font-medium text-slate-600 group-hover:text-slate-700 transition-colors duration-300">
-                  Noticias Colaborativas
-                </p>
-              </div>
-              <div className="p-3 bg-orange-100 rounded-lg group-hover:bg-orange-200 group-hover:scale-110 transition-all duration-300">
-                <MessageCircle className="h-6 w-6 text-orange-600 group-hover:text-orange-700 transition-colors duration-300" />
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Búsqueda y Ordenamiento */}
@@ -325,10 +309,7 @@ export default function AllCommunitiesPage() {
                     <Users className="h-4 w-4 mr-2 text-slate-400" />
                     <span>{comunidad.miembros?.length || 0} miembros activos</span>
                   </div>
-                  <div className="flex items-center text-sm text-slate-500">
-                    <MessageCircle className="h-4 w-4 mr-2 text-slate-400" />
-                    <span>{comunidad.noticias?.length || 0} noticias publicadas</span>
-                  </div>
+                  
                   <div className="flex items-center text-sm text-slate-500">
                     <Calendar className="h-4 w-4 mr-2 text-slate-400" />
                     <span>
@@ -460,19 +441,6 @@ export default function AllCommunitiesPage() {
                     Miembros Activos
                   </p>
                 </div>
-
-                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 text-center hover:shadow-lg hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
-                  <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center mx-auto mb-2 group-hover:bg-emerald-700 group-hover:scale-110 transition-all duration-300">
-                    <MessageCircle className="h-5 w-5 text-white" />
-                  </div>
-                  <p className="text-2xl font-bold text-emerald-900 group-hover:text-emerald-800 transition-colors duration-300">
-                    {comunidadSeleccionada.noticias?.length || 0}
-                  </p>
-                  <p className="text-sm text-emerald-700 group-hover:text-emerald-600 transition-colors duration-300">
-                    Noticias
-                  </p>
-                </div>
-
                 <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 text-center hover:shadow-lg hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
                   <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center mx-auto mb-2 group-hover:bg-purple-700 group-hover:scale-110 transition-all duration-300">
                     <Calendar className="h-5 w-5 text-white" />
@@ -543,12 +511,6 @@ export default function AllCommunitiesPage() {
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       <span className="text-sm text-slate-600">
                         {comunidadSeleccionada.miembros?.length || 0} periodistas colaborando
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-3 py-2">
-                      <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                      <span className="text-sm text-slate-600">
-                        {comunidadSeleccionada.noticias?.length || 0} noticias publicadas
                       </span>
                     </div>
                     <div className="flex items-center space-x-3 py-2">

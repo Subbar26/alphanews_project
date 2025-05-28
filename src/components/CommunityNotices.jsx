@@ -144,22 +144,29 @@ export default function CommunityNotices() {
         }
     }
 
-    const crearNoticia = async (e) => {
-        e.preventDefault()
+    const crearNoticia = async e => {
+        e.preventDefault();
         try {
             const payload = {
-                ...formNoticia,
+                titulo: formNoticia.titulo,
+                descripcion: formNoticia.descripcion,
+                texto: formNoticia.texto,
                 autor: user.id,
-                comunidad: communityId,
-            }
-            const { data } = await axios.post(`${BASE}/noticias`, payload, { headers })
-            setNoticias((prev) => [data, ...prev])
-            setMostrarModalCrear(false)
-            setFormNoticia({ titulo: "", descripcion: "", texto: "" })
+                comunidad: communityId,    // <-- aquí garantizamos pasar el ID de la comunidad
+            };
+            const { data } = await axios.post(
+                `${BASE}/noticias`,
+                payload,
+                { headers }
+            );
+            setNoticias(prev => [data, ...prev]);
+            setFormNoticia({ titulo: "", descripcion: "", texto: "" });
+            setMostrarModalCrear(false);
         } catch (err) {
-            setError(err.response?.data?.error || "Error al crear noticia")
+            setError(err.response?.data?.error || "Error al crear noticia");
         }
-    }
+    };
+
 
     // Agregar esta función para cargar detalle de noticia por ID
     // Dentro de tu componente:

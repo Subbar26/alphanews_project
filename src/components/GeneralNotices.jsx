@@ -1,25 +1,28 @@
 "use client"
 
-import { useState, useEffect, useContext } from "react"
+import { useState, useEffect, useContext, useRef } from "react"
 import {
   Search,
-  Calendar,
-  User,
-  Eye,
-  Heart,
   MessageCircle,
-  Filter,
-  TrendingUp,
-  Clock,
-  Users,
-  BookOpen,
+  Eye,
   X,
-  Tag,
+  Edit3,
+  Trash2,
+  User,
+  Heart,
+  Share2,
+  BookOpen,
+  Filter,
   AlertTriangle,
+  Clock,
+  Send,
+  Save,
+  Calendar,
+  TrendingUp,
+  Users,
   Globe,
 } from "lucide-react"
 import { AuthContext } from "../contexts/AuthContext"
-import { Link } from "react-router-dom"
 import axios from "axios"
 
 export default function GeneralNotices() {
@@ -34,6 +37,15 @@ export default function GeneralNotices() {
   const [ordenamiento, setOrdenamiento] = useState("recientes")
   const [mostrarModalDetalle, setMostrarModalDetalle] = useState(false)
   const [noticiaSeleccionada, setNoticiaSeleccionada] = useState(null)
+  const [cargandoDetalle, setCargandoDetalle] = useState(false)
+  const [comentarios, setComentarios] = useState([])
+  const [nuevoComentario, setNuevoComentario] = useState("")
+  const [comentarioEditando, setComentarioEditando] = useState(null)
+  const [textoEditado, setTextoEditado] = useState("")
+  const [cargandoComentarios, setCargandoComentarios] = useState(false)
+  const [cargandoLike, setCargandoLike] = useState(false)
+  const comentarioRef = useRef(null)
+  const [textoEditando, setTextoEditando] = useState("")
 
   // URL base de tu API
   const BASE = "http://localhost:5100"
@@ -56,7 +68,10 @@ export default function GeneralNotices() {
       filtradas = filtradas.filter(
         (n) =>
           n.titulo.toLowerCase().includes(b) ||
-          n.contenido.toLowerCase().includes(b) ||
+          n.descripcion?.toLowerCase().includes(b) ||
+          n.texto?.toLowerCase().includes(b) ||
+          n.autor?.username.toLowerCase().includes(b) ||
+          n.contenido?.toLowerCase().includes(b) ||
           n.comunidad?.titulo.toLowerCase().includes(b) ||
           n.autor?.nombre.toLowerCase().includes(b),
       )
@@ -98,55 +113,301 @@ export default function GeneralNotices() {
   async function cargarNoticias() {
     try {
       setCargando(true)
-      const resp = await axios.get(`${BASE}/noticias`, { headers })
-      setNoticias(resp.data)
+
+      // 1) Traemos todas las noticias
+      const { data: noticiasRaw } = await axios.get(`${BASE}/noticias`, { headers })
+
+      // 2) Para cada noticia, buscamos:
+      //    - los datos del autor (username)
+      //    - los datos de la comunidad asociada (titulo y descripcion) — si existe comunidad
+      const noticiasEnriquecidas = await Promise.all(
+        noticiasRaw.map(async (n) => {
+          // 2a) Autor
+          const { data: autorData } = await axios.get(`${BASE}/usuarios/${n.autor}`, { headers })
+
+          // 2b) Comunidad (opcional)
+          let comunidad = null
+          if (n.comunidad) {
+            try {
+              const { data: commData } = await axios.get(`${BASE}/comunidades/${n.comunidad}`, { headers })
+              comunidad = {
+                _id: commData._id,
+                titulo: commData.titulo,
+                descripcion: commData.descripcion,
+              }
+            } catch {
+              // Si falla la petición de comunidad, la dejamos en null
+              comunidad = null
+            }
+          }
+
+          // 3) Devolvemos la noticia "enchulada"
+          return {
+            ...n,
+            autor: {
+              _id: n.autor,
+              username: autorData.username,
+            },
+            comunidad,
+          }
+        }),
+      )
+
+      // 4) Actualizamos el estado una sola vez
+      setNoticias(noticiasEnriquecidas)
     } catch (err) {
-      setError(err.response?.data?.error || "Error al cargar noticias")
+      console.error(err)
+      setError(err.response?.data?.error || "Error al cargar noticias generales")
     } finally {
       setCargando(false)
     }
   }
 
-  const verDetalleNoticia = (noticia) => {
-    setNoticiaSeleccionada(noticia)
-    setMostrarModalDetalle(true)
+  const cargarDetalleNoticia = async (noticiaId) => {
+    try {
+      setCargandoDetalle(true)
+
+      // 1) NoticiasModel.get(id)
+      const { data: noticia } = await axios.get(`${BASE}/noticias/${noticiaId}`, { headers })
+
+      // 2) Autor → username
+      const authorId = typeof noticia.autor === "object" ? noticia.autor._id : noticia.autor
+
+      const { data: autorData } = await axios.get(`${BASE}/usuarios/${authorId}`, { headers })
+
+      noticia.autor = {
+        _id: authorId,
+        username: autorData.username,
+      }
+
+      // 3) Comunidad (opcional)
+      if (noticia.comunidad) {
+        try {
+          const { data: commData } = await axios.get(`${BASE}/comunidades/${noticia.comunidad}`, { headers })
+          noticia.comunidad = {
+            _id: commData._id,
+            titulo: commData.titulo,
+            descripcion: commData.descripcion,
+          }
+        } catch {
+          // si falla, la dejamos como venga (por si usa únicamente _id)
+        }
+      }
+
+      // 4) Guardamos el objeto completo
+      setNoticiaSeleccionada(noticia)
+
+      // 5) Cargamos también los comentarios
+      await cargarComentarios(noticiaId)
+    } catch (err) {
+      console.error(err)
+      setError(err.response?.data?.error || "Error al cargar detalle de la noticia")
+    } finally {
+      setCargandoDetalle(false)
+    }
   }
 
-  const darLike = async (noticiaId) => {
-    if (!token) {
-      setError("Debes iniciar sesión para dar like")
+  const cargarComentarios = async (noticiaId) => {
+    try {
+      setCargandoComentarios(true)
+      const { data } = await axios.get(`${BASE}/noticias/${noticiaId}/comentarios`, { headers })
+
+      // Obtener información de usuario para cada comentario
+      const comentariosConUsuario = await Promise.all(
+        data.map(async (c) => {
+          try {
+            const { data: userData } = await axios.get(`${BASE}/usuarios/${c.usuario}`, { headers })
+            return {
+              ...c,
+              usuario: {
+                _id: c.usuario,
+                username: userData.username,
+              },
+            }
+          } catch (error) {
+            return {
+              ...c,
+              usuario: {
+                _id: c.usuario,
+                username: "Usuario desconocido",
+              },
+            }
+          }
+        }),
+      )
+
+      setComentarios(comentariosConUsuario)
+    } catch (err) {
+      console.error("Error al cargar comentarios:", err)
+      setError("Error al cargar los comentarios")
+      setComentarios([])
+    } finally {
+      setCargandoComentarios(false)
+    }
+  }
+
+  const verDetalleNoticia = async (noticia) => {
+    // Abrimos el modal
+    setMostrarModalDetalle(true)
+    // Y cargamos T O D O el detalle por su ID:
+    await cargarDetalleNoticia(noticia._id)
+  }
+
+  const darLike = async (noticiaId, tipo = "like") => {
+    if (!user) {
+      setError("Debes iniciar sesión para reaccionar")
       return
     }
+
+    if (!token) {
+      setError("Debes iniciar sesión para reaccionar")
+      return
+    }
+
     try {
-      await axios.post(`${BASE}/noticias/${noticiaId}/like`, { userId: user.id }, { headers })
-      await cargarNoticias()
+      setCargandoLike(true)
+      const endpoint = tipo === "like" ? "like" : "dislike"
+      const { data } = await axios.post(`${BASE}/noticias/${noticiaId}/${endpoint}`, { userId: user.id }, { headers })
+
+      // Actualizar la noticia en la lista
+      setNoticias((prev) =>
+        prev.map((n) => {
+          if (n._id === noticiaId) {
+            return {
+              ...n,
+              likes: data.likes || n.likes || [],
+              dislikes: data.dislikes || n.dislikes || [],
+            }
+          }
+          return n
+        }),
+      )
+
+      // Actualizar la noticia seleccionada si es la misma
+      if (noticiaSeleccionada?._id === noticiaId) {
+        setNoticiaSeleccionada((prev) => ({
+          ...prev,
+          likes: data.likes || prev.likes || [],
+          dislikes: data.dislikes || prev.dislikes || [],
+        }))
+      }
     } catch (err) {
-      setError(err.response?.data?.error || "Error al dar like")
+      setError(err.response?.data?.error || "Error al reaccionar")
+    } finally {
+      setCargandoLike(false)
     }
   }
 
-  const getEstadisticas = () => {
-    const total = noticias.length
-    const conComunidad = noticias.filter((n) => n.comunidad).length
-    const sinComunidad = noticias.filter((n) => !n.comunidad).length
-    const totalLikes = noticias.reduce((acc, n) => acc + (n.likes?.length || 0), 0)
-    const totalComentarios = noticias.reduce((acc, n) => acc + (n.comentarios?.length || 0), 0)
-    const comunidadesUnicas = new Set(noticias.map((n) => n.comunidad?._id).filter(Boolean)).size
+  const agregarComentario = async (e) => {
+    e.preventDefault()
+    if (!user) {
+      setError("Debes iniciar sesión para comentar")
+      return
+    }
 
-    return { total, conComunidad, sinComunidad, totalLikes, totalComentarios, comunidadesUnicas }
+    if (!nuevoComentario.trim()) return
+
+    if (!nuevoComentario.trim() || !token) return
+
+    try {
+      const { data } = await axios.post(
+        `${BASE}/noticias/${noticiaSeleccionada._id}/comentarios`,
+        { texto: nuevoComentario },
+        { headers },
+      )
+
+      // Agregar el usuario al comentario para mostrarlo inmediatamente
+      const comentarioConUsuario = {
+        ...data,
+        usuario: {
+          _id: user.id,
+          username: user.username,
+        },
+      }
+
+      setComentarios((prev) => [...prev, comentarioConUsuario])
+      setNuevoComentario("")
+
+      // Actualizar contador de comentarios en la noticia
+      setNoticiaSeleccionada((prev) => ({
+        ...prev,
+        comentarios: [...(prev.comentarios || []), data._id],
+      }))
+
+      // Actualizar también en la lista de noticias
+      setNoticias((prev) =>
+        prev.map((n) =>
+          n._id === noticiaSeleccionada._id ? { ...n, comentarios: [...(n.comentarios || []), data._id] } : n,
+        ),
+      )
+    } catch (err) {
+      setError(err.response?.data?.error || "Error al agregar comentario")
+    }
   }
 
-  const getComunidadesUnicas = () => {
-    const comunidades = noticias
-      .map((n) => n.comunidad)
-      .filter((c) => c)
-      .reduce((acc, curr) => {
-        if (!acc.find((c) => c._id === curr._id)) {
-          acc.push(curr)
-        }
-        return acc
-      }, [])
-    return comunidades
+  const iniciarEdicionComentario = (comentario) => {
+    setComentarioEditando(comentario._id)
+    setTextoEditado(comentario.texto)
+    // Enfocar el campo de texto después de renderizar
+    setTimeout(() => {
+      if (comentarioRef.current) {
+        comentarioRef.current.focus()
+      }
+    }, 0)
+  }
+
+  const cancelarEdicionComentario = () => {
+    setComentarioEditando(null)
+    setTextoEditado("")
+  }
+
+  const guardarEdicionComentario = async (comentarioId) => {
+    if (!textoEditado.trim()) return
+
+    try {
+      const { data } = await axios.put(
+        `${BASE}/noticias/${noticiaSeleccionada._id}/comentarios/${comentarioId}`,
+        { texto: textoEditado },
+        { headers },
+      )
+
+      setComentarios((prev) =>
+        prev.map((c) => (c._id === comentarioId ? { ...c, texto: textoEditado, fechaEdicion: data.fechaEdicion } : c)),
+      )
+      setComentarioEditando(null)
+      setTextoEditado("")
+    } catch (err) {
+      setError(err.response?.data?.error || "Error al editar comentario")
+    }
+  }
+
+  const eliminarComentario = async (comentarioId) => {
+    try {
+      await axios.delete(`${BASE}/noticias/${noticiaSeleccionada._id}/comentarios/${comentarioId}`, { headers })
+
+      setComentarios((prev) => prev.filter((c) => c._id !== comentarioId))
+
+      // Actualizar contador de comentarios en la noticia
+      setNoticiaSeleccionada((prev) => ({
+        ...prev,
+        comentarios: (prev.comentarios || []).filter((id) => id !== comentarioId),
+      }))
+
+      // Actualizar también en la lista de noticias
+      setNoticias((prev) =>
+        prev.map((n) =>
+          n._id === noticiaSeleccionada._id
+            ? { ...n, comentarios: (n.comentarios || []).filter((id) => id !== comentarioId) }
+            : n,
+        ),
+      )
+    } catch (err) {
+      setError(err.response?.data?.error || "Error al eliminar comentario")
+    }
+  }
+
+  const esAutorComentario = (comentario) => {
+    return comentario && user && comentario.usuario?._id === user.id
   }
 
   const formatearFecha = (fecha) => {
@@ -172,6 +433,39 @@ export default function GeneralNotices() {
     }
   }
 
+  const usuarioHaDadoLike = (noticia) => {
+    return noticia?.likes?.includes(user?.id)
+  }
+
+  const usuarioHaDadoDislike = (noticia) => {
+    return noticia?.dislikes?.includes(user?.id)
+  }
+
+  const getEstadisticas = () => {
+    const total = noticias.length
+    const conComunidad = noticias.filter((n) => n.comunidad).length
+    const sinComunidad = noticias.filter((n) => !n.comunidad).length
+    const totalLikes = noticias.reduce((acc, n) => acc + (n.likes?.length || 0), 0)
+    const totalDislikes = noticias.reduce((acc, n) => acc + (n.dislikes?.length || 0), 0)
+    const totalComentarios = noticias.reduce((acc, n) => acc + (n.comentarios?.length || 0), 0)
+    const comunidadesUnicas = new Set(noticias.map((n) => n.comunidad?._id).filter(Boolean)).size
+
+    return { total, conComunidad, sinComunidad, totalLikes, totalDislikes, totalComentarios, comunidadesUnicas }
+  }
+
+  const getComunidadesUnicas = () => {
+    const comunidades = noticias
+      .map((n) => n.comunidad)
+      .filter((c) => c)
+      .reduce((acc, curr) => {
+        if (!acc.find((c) => c._id === curr._id)) {
+          acc.push(curr)
+        }
+        return acc
+      }, [])
+    return comunidades
+  }
+
   const stats = getEstadisticas()
   const comunidades = getComunidadesUnicas()
 
@@ -180,30 +474,19 @@ export default function GeneralNotices() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="animate-pulse">
-            <div className="h-10 bg-gray-200 rounded-lg w-1/3 mb-8"></div>
+            {/* Header skeleton */}
+            <div className="h-8 bg-gray-200 rounded w-1/3 mb-8"></div>
 
-            {/* Stats skeleton */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="bg-white rounded-xl p-6 shadow-sm">
-                  <div className="h-8 bg-gray-200 rounded w-12 mb-2"></div>
-                  <div className="h-6 bg-gray-200 rounded w-16 mb-1"></div>
-                  <div className="h-4 bg-gray-200 rounded w-20"></div>
-                </div>
-              ))}
-            </div>
+            {/* Search skeleton */}
+            <div className="h-14 bg-gray-200 rounded-xl mb-8"></div>
 
             {/* Cards skeleton */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(6)].map((_, i) => (
                 <div key={i} className="bg-white rounded-xl p-6 shadow-sm">
                   <div className="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
                   <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-2/3 mb-4"></div>
-                  <div className="flex space-x-2">
-                    <div className="h-8 bg-gray-200 rounded w-16"></div>
-                    <div className="h-8 bg-gray-200 rounded w-16"></div>
-                  </div>
+                  <div className="h-4 bg-gray-200 rounded w-2/3"></div>
                 </div>
               ))}
             </div>
@@ -216,27 +499,6 @@ export default function GeneralNotices() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div className="mb-6 lg:mb-0">
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-3">
-                Explorar Noticias
-              </h1>
-              <p className="text-lg text-slate-600 max-w-2xl">
-                Descubre las últimas noticias de toda la plataforma. Explora contenido independiente y noticias
-                colaborativas de diferentes comunidades.
-              </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
-                <p className="text-sm text-slate-600">Noticias publicadas</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Error Message */}
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start space-x-3">
@@ -252,50 +514,66 @@ export default function GeneralNotices() {
 
         {/* Estadísticas */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 hover:shadow-lg hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
-                <p className="text-sm font-medium text-slate-600">Total Noticias</p>
+                <p className="text-2xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors duration-300">
+                  {stats.total}
+                </p>
+                <p className="text-sm font-medium text-slate-600 group-hover:text-slate-700 transition-colors duration-300">
+                  Total Noticias
+                </p>
               </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <BookOpen className="h-6 w-6 text-blue-600" />
+              <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 group-hover:scale-110 transition-all duration-300">
+                <BookOpen className="h-6 w-6 text-blue-600 group-hover:text-blue-700 transition-colors duration-300" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 hover:shadow-lg hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-slate-900">{stats.conComunidad}</p>
-                <p className="text-sm font-medium text-slate-600">Con Comunidad</p>
+                <p className="text-2xl font-bold text-slate-900 group-hover:text-emerald-600 transition-colors duration-300">
+                  {stats.conComunidad}
+                </p>
+                <p className="text-sm font-medium text-slate-600 group-hover:text-slate-700 transition-colors duration-300">
+                  Con Comunidad
+                </p>
               </div>
-              <div className="p-3 bg-emerald-100 rounded-lg">
-                <Users className="h-6 w-6 text-emerald-600" />
+              <div className="p-3 bg-emerald-100 rounded-lg group-hover:bg-emerald-200 group-hover:scale-110 transition-all duration-300">
+                <Users className="h-6 w-6 text-emerald-600 group-hover:text-emerald-700 transition-colors duration-300" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 hover:shadow-lg hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-slate-900">{stats.sinComunidad}</p>
-                <p className="text-sm font-medium text-slate-600">Independientes</p>
+                <p className="text-2xl font-bold text-slate-900 group-hover:text-purple-600 transition-colors duration-300">
+                  {stats.sinComunidad}
+                </p>
+                <p className="text-sm font-medium text-slate-600 group-hover:text-slate-700 transition-colors duration-300">
+                  Independientes
+                </p>
               </div>
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Globe className="h-6 w-6 text-purple-600" />
+              <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 group-hover:scale-110 transition-all duration-300">
+                <Globe className="h-6 w-6 text-purple-600 group-hover:text-purple-700 transition-colors duration-300" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 hover:shadow-lg hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-slate-900">{stats.totalLikes}</p>
-                <p className="text-sm font-medium text-slate-600">Total Likes</p>
+                <p className="text-2xl font-bold text-slate-900 group-hover:text-orange-600 transition-colors duration-300">
+                  {stats.totalLikes}
+                </p>
+                <p className="text-sm font-medium text-slate-600 group-hover:text-slate-700 transition-colors duration-300">
+                  Total Likes
+                </p>
               </div>
-              <div className="p-3 bg-orange-100 rounded-lg">
-                <Heart className="h-6 w-6 text-orange-600" />
+              <div className="p-3 bg-orange-100 rounded-lg group-hover:bg-orange-200 group-hover:scale-110 transition-all duration-300">
+                <Heart className="h-6 w-6 text-orange-600 group-hover:text-orange-700 transition-colors duration-300" />
               </div>
             </div>
           </div>
@@ -378,7 +656,7 @@ export default function GeneralNotices() {
         </div>
 
         {/* Grid de Noticias */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {noticiasFiltradas.map((noticia) => (
             <article
               key={noticia._id}
@@ -388,11 +666,11 @@ export default function GeneralNotices() {
                 {/* Header de la noticia */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      {noticia.autor?.nombre?.charAt(0)?.toUpperCase() || "A"}
+                    <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
+                      <User className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-slate-900">{noticia.autor?.nombre || "Autor"}</p>
+                      <p className="text-sm font-medium text-slate-900">{noticia.autor?.username || "Autor"}</p>
                       <div className="flex items-center space-x-2 text-xs text-slate-500">
                         <Clock className="h-3 w-3" />
                         <span>{formatearFecha(noticia.fechaCreacion)}</span>
@@ -416,32 +694,36 @@ export default function GeneralNotices() {
 
                 {/* Título y contenido */}
                 <div className="mb-4">
-                  <h2 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
+                  <h2 className="text-lg font-semibold text-slate-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
                     {noticia.titulo}
                   </h2>
-                  <p className="text-slate-600 text-sm leading-relaxed line-clamp-3">{noticia.contenido}</p>
+                  <p className="text-slate-600 text-sm leading-relaxed line-clamp-3">
+                    {noticia.contenido || noticia.texto}
+                  </p>
                 </div>
-
-                {/* Imagen si existe */}
-                {noticia.imagen && (
-                  <div className="mb-4 rounded-lg overflow-hidden">
-                    <img
-                      src={noticia.imagen || "/placeholder.svg"}
-                      alt={noticia.titulo}
-                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-200"
-                    />
-                  </div>
-                )}
 
                 {/* Acciones */}
                 <div className="flex items-center justify-between pt-4 border-t border-slate-100">
                   <div className="flex items-center space-x-4">
                     <button
-                      onClick={() => darLike(noticia._id)}
-                      className="flex items-center space-x-1 text-slate-500 hover:text-red-500 transition-colors"
+                      onClick={() => darLike(noticia._id, "like")}
+                      disabled={cargandoLike}
+                      className={`flex items-center space-x-1 transition-colors ${
+                        usuarioHaDadoLike(noticia) ? "text-green-600" : "text-slate-500 hover:text-green-600"
+                      }`}
                     >
-                      <Heart className="h-4 w-4" />
+                      <Heart className={`h-4 w-4 ${usuarioHaDadoLike(noticia) ? "fill-current" : ""}`} />
                       <span className="text-sm">{noticia.likes?.length || 0}</span>
+                    </button>
+                    <button
+                      onClick={() => darLike(noticia._id, "dislike")}
+                      disabled={cargandoLike}
+                      className={`flex items-center space-x-1 transition-colors ${
+                        usuarioHaDadoDislike(noticia) ? "text-red-600" : "text-slate-500 hover:text-red-600"
+                      }`}
+                    >
+                      <Heart className={`h-4 w-4 rotate-180 ${usuarioHaDadoDislike(noticia) ? "fill-current" : ""}`} />
+                      <span className="text-sm">{noticia.dislikes?.length || 0}</span>
                     </button>
                     <div className="flex items-center space-x-1 text-slate-500">
                       <MessageCircle className="h-4 w-4" />
@@ -450,7 +732,7 @@ export default function GeneralNotices() {
                   </div>
                   <button
                     onClick={() => verDetalleNoticia(noticia)}
-                    className="flex items-center space-x-1 text-blue-600 hover:text-blue-700 font-medium text-sm"
+                    className="flex items-center space-x-1 text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors"
                   >
                     <Eye className="h-4 w-4" />
                     <span>Leer más</span>
@@ -483,125 +765,288 @@ export default function GeneralNotices() {
         )}
       </div>
 
-      {/* Modal Detalle de Noticia */}
+      {/* Modal Detalle Noticia - MEJORADO PARA MOSTRAR INFORMACIÓN COMPLETA */}
       {mostrarModalDetalle && noticiaSeleccionada && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
             {/* Header del Modal */}
-            <div className="relative bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-2xl">
+            <div className="bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-200 p-6">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                    <BookOpen className="h-6 w-6" />
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center">
+                    <BookOpen className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold line-clamp-1">{noticiaSeleccionada.titulo}</h2>
-                    <div className="flex items-center space-x-3 mt-1">
-                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-white bg-opacity-20 rounded-full">
-                        <User className="h-3 w-3 mr-1" />
-                        {noticiaSeleccionada.autor?.nombre || "Autor"}
-                      </span>
-                      {noticiaSeleccionada.comunidad ? (
-                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-white bg-opacity-20 rounded-full">
-                          <Users className="h-3 w-3 mr-1" />
-                          {noticiaSeleccionada.comunidad.titulo}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-white bg-opacity-20 rounded-full">
-                          <Globe className="h-3 w-3 mr-1" />
-                          Independiente
-                        </span>
-                      )}
-                    </div>
+                    <h2 className="text-xl font-bold text-slate-900">Detalle de Noticia</h2>
+                    <p className="text-sm text-slate-500">
+                      {noticiaSeleccionada.comunidad ? noticiaSeleccionada.comunidad.titulo : "Noticia Independiente"}
+                    </p>
                   </div>
                 </div>
                 <button
                   onClick={() => setMostrarModalDetalle(false)}
-                  className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
+                  className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-lg transition-colors"
                 >
                   <X className="h-6 w-6" />
                 </button>
               </div>
             </div>
 
-            <div className="p-6">
-              {/* Información de la comunidad */}
-              {noticiaSeleccionada.comunidad && (
-                <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                        <Users className="h-5 w-5 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-blue-900">
-                          Publicado en: {noticiaSeleccionada.comunidad.titulo}
-                        </h3>
-                        <p className="text-sm text-blue-700">{noticiaSeleccionada.comunidad.descripcion}</p>
+            {/* Contenido Scrolleable */}
+            <div className="overflow-y-auto max-h-[calc(90vh-200px)]">
+              {cargandoDetalle ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+              ) : (
+                <div className="p-8">
+                  {/* Información del Autor */}
+                  <div className="flex items-center space-x-4 mb-6 p-4 bg-slate-50 rounded-xl">
+                    <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white text-lg font-bold">
+                      {noticiaSeleccionada.autor?.username?.charAt(0)?.toUpperCase() || "A"}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-slate-900">{noticiaSeleccionada.autor?.username || "Autor"}</p>
+                      <div className="flex items-center space-x-4 text-sm text-slate-500">
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="h-4 w-4" />
+                          <span>{formatearFecha(noticiaSeleccionada.fechaCreacion)}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Heart className="h-4 w-4" />
+                          <span>{noticiaSeleccionada.likes?.length || 0} likes</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <MessageCircle className="h-4 w-4" />
+                          <span>{comentarios.length} comentarios</span>
+                        </div>
                       </div>
                     </div>
-                    <Link
-                      to={`/comunidades/${noticiaSeleccionada.comunidad._id}/noticias`}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                    >
-                      Ver comunidad
-                    </Link>
+                    {noticiaSeleccionada.comunidad ? (
+                      <div className="flex items-center space-x-1 text-xs text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                        <Users className="h-3 w-3" />
+                        <span className="font-medium">{noticiaSeleccionada.comunidad.titulo}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-1 text-xs text-purple-600 bg-purple-50 px-3 py-1 rounded-full border border-purple-200">
+                        <Globe className="h-3 w-3" />
+                        <span className="font-medium">Independiente</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Información de la comunidad si existe */}
+                  {noticiaSeleccionada.comunidad && (
+                    <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                            <Users className="h-5 w-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-blue-900">
+                              Publicado en: {noticiaSeleccionada.comunidad.titulo}
+                            </h3>
+                            <p className="text-sm text-blue-700">{noticiaSeleccionada.comunidad.descripcion}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Título */}
+                  <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6 leading-tight">
+                    {noticiaSeleccionada.titulo}
+                  </h1>
+
+                  {/* Descripción Destacada si existe */}
+                  {noticiaSeleccionada.descripcion && (
+                    <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-r-xl">
+                      <p className="text-lg text-slate-700 italic leading-relaxed font-medium">
+                        {noticiaSeleccionada.descripcion}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Contenido Principal */}
+                  <div className="prose prose-lg max-w-none mb-8">
+                    <div className="text-slate-700 leading-relaxed text-base whitespace-pre-wrap">
+                      {noticiaSeleccionada.texto || noticiaSeleccionada.contenido}
+                    </div>
+                  </div>
+
+                  {/* Estadísticas de la noticia */}
+                  <div className="flex items-center justify-between py-4 border-t border-slate-200 mb-6">
+                    <div className="flex items-center space-x-6">
+                      <button
+                        onClick={() => darLike(noticiaSeleccionada._id, "like")}
+                        disabled={cargandoLike}
+                        className={`flex items-center space-x-2 ${
+                          usuarioHaDadoLike(noticiaSeleccionada)
+                            ? "text-green-600"
+                            : "text-slate-500 hover:text-green-600"
+                        } transition-colors`}
+                      >
+                        <Heart
+                          className={`h-5 w-5 ${cargandoLike ? "animate-pulse" : ""}`}
+                          fill={usuarioHaDadoLike(noticiaSeleccionada) ? "currentColor" : "none"}
+                        />
+                        <span>{noticiaSeleccionada.likes?.length || 0} me gusta</span>
+                      </button>
+                      <button
+                        onClick={() => darLike(noticiaSeleccionada._id, "dislike")}
+                        disabled={cargandoLike}
+                        className={`flex items-center space-x-2 ${
+                          usuarioHaDadoDislike(noticiaSeleccionada)
+                            ? "text-red-600"
+                            : "text-slate-500 hover:text-red-600"
+                        } transition-colors`}
+                      >
+                        <Heart
+                          className={`h-5 w-5 rotate-180 ${cargandoLike ? "animate-pulse" : ""}`}
+                          fill={usuarioHaDadoDislike(noticiaSeleccionada) ? "currentColor" : "none"}
+                        />
+                        <span>{noticiaSeleccionada.dislikes?.length || 0} no me gusta</span>
+                      </button>
+                      <div className="flex items-center space-x-2 text-slate-500">
+                        <MessageCircle className="h-5 w-5" />
+                        <span>{comentarios.length} comentarios</span>
+                      </div>
+                    </div>
+                    <button className="flex items-center space-x-2 text-slate-500 hover:text-slate-700 transition-colors">
+                      <Share2 className="h-5 w-5" />
+                      <span>Compartir</span>
+                    </button>
+                  </div>
+
+                  {/* Sección de comentarios */}
+                  <div className="border-t border-slate-200 pt-6">
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
+                      <MessageCircle className="h-5 w-5 mr-2 text-blue-600" />
+                      Comentarios
+                    </h3>
+
+                    {/* Formulario para agregar comentario */}
+                    {user && (
+                      <form onSubmit={agregarComentario} className="mb-6">
+                        <div className="flex items-start space-x-3">
+                          <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center flex-shrink-0">
+                            <User className="h-5 w-5 text-white" />
+                          </div>
+                          <div className="flex-1 relative">
+                            <textarea
+                              value={nuevoComentario}
+                              onChange={(e) => setNuevoComentario(e.target.value)}
+                              placeholder="Escribe un comentario..."
+                              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors resize-none"
+                              rows={2}
+                            ></textarea>
+                            <button
+                              type="submit"
+                              disabled={!nuevoComentario.trim()}
+                              className="absolute right-3 bottom-3 p-1.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <Send className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                    )}
+
+                    {/* Lista de comentarios */}
+                    <div className="space-y-4">
+                      {cargandoComentarios ? (
+                        <div className="animate-pulse space-y-4">
+                          {[...Array(3)].map((_, i) => (
+                            <div key={i} className="flex items-start space-x-3">
+                              <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                              <div className="flex-1">
+                                <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
+                                <div className="h-3 bg-gray-200 rounded w-full mb-1"></div>
+                                <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : comentarios.length > 0 ? (
+                        comentarios.map((comentario) => (
+                          <div key={comentario._id} className="bg-slate-50 rounded-xl p-4">
+                            <div className="flex items-start space-x-3">
+                              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                <User className="h-5 w-5 text-white" />
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                  <div>
+                                    <p className="text-sm font-medium text-slate-900">{comentario.usuario?.username}</p>
+                                    <p className="text-xs text-slate-500">
+                                      {formatearFecha(comentario.fechaCreacion)}
+                                      {comentario.fechaEdicion && <span className="ml-2 italic">(editado)</span>}
+                                    </p>
+                                  </div>
+                                  {esAutorComentario(comentario) && (
+                                    <div className="relative">
+                                      <div className="flex space-x-1">
+                                        <button
+                                          onClick={() => iniciarEdicionComentario(comentario)}
+                                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                        >
+                                          <Edit3 className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                          onClick={() => eliminarComentario(comentario._id)}
+                                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {comentarioEditando === comentario._id ? (
+                                  <div className="mt-2">
+                                    <textarea
+                                      ref={comentarioRef}
+                                      value={textoEditado}
+                                      onChange={(e) => setTextoEditado(e.target.value)}
+                                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors resize-none text-sm"
+                                      rows={2}
+                                    ></textarea>
+                                    <div className="flex justify-end space-x-2 mt-2">
+                                      <button
+                                        onClick={cancelarEdicionComentario}
+                                        className="px-3 py-1 text-xs border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                                      >
+                                        Cancelar
+                                      </button>
+                                      <button
+                                        onClick={() => guardarEdicionComentario(comentario._id)}
+                                        disabled={!textoEditado.trim()}
+                                        className="px-3 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        <Save className="h-3 w-3 mr-1" />
+                                        Guardar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="text-slate-700 text-sm mt-1">{comentario.texto}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8">
+                          <MessageCircle className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                          <p className="text-slate-500">No hay comentarios aún. ¡Sé el primero en comentar!</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
-
-              {/* Imagen si existe */}
-              {noticiaSeleccionada.imagen && (
-                <div className="mb-6 rounded-xl overflow-hidden">
-                  <img
-                    src={noticiaSeleccionada.imagen || "/placeholder.svg"}
-                    alt={noticiaSeleccionada.titulo}
-                    className="w-full h-64 object-cover"
-                  />
-                </div>
-              )}
-
-              {/* Contenido */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-4 text-sm text-slate-500">
-                    <div className="flex items-center space-x-1">
-                      <Calendar className="h-4 w-4" />
-                      <span>{formatearFecha(noticiaSeleccionada.fechaCreacion)}</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Tag className="h-4 w-4" />
-                      <span>{noticiaSeleccionada.categoria || "General"}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="prose max-w-none">
-                  <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{noticiaSeleccionada.contenido}</p>
-                </div>
-              </div>
-
-              {/* Estadísticas y acciones */}
-              <div className="flex items-center justify-between pt-6 border-t border-slate-200">
-                <div className="flex items-center space-x-6">
-                  <button
-                    onClick={() => darLike(noticiaSeleccionada._id)}
-                    className="flex items-center space-x-2 text-slate-600 hover:text-red-500 transition-colors"
-                  >
-                    <Heart className="h-5 w-5" />
-                    <span>{noticiaSeleccionada.likes?.length || 0} likes</span>
-                  </button>
-                  <div className="flex items-center space-x-2 text-slate-600">
-                    <MessageCircle className="h-5 w-5" />
-                    <span>{noticiaSeleccionada.comentarios?.length || 0} comentarios</span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setMostrarModalDetalle(false)}
-                  className="px-6 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
-                >
-                  Cerrar
-                </button>
-              </div>
             </div>
           </div>
         </div>

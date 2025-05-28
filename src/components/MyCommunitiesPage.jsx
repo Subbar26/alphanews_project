@@ -296,18 +296,6 @@ export default function MyCommunitiesPage() {
                             </div>
                         </div>
                     </div>
-
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 hover:shadow-xl hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-2xl font-bold text-slate-900 group-hover:text-orange-600 transition-colors duration-300">{stats.totalNoticias}</p>
-                                <p className="text-sm font-medium text-slate-600 group-hover:text-slate-700 transition-colors duration-300">Total Noticias</p>
-                            </div>
-                            <div className="p-3 bg-orange-100 rounded-lg group-hover:bg-orange-200 group-hover:scale-110 transition-all duration-300">
-                                <MessageCircle className="h-6 w-6 text-orange-600 group-hover:text-orange-700 transition-colors duration-300" />
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Búsqueda y Ordenamiento */}
@@ -499,20 +487,6 @@ export default function MyCommunitiesPage() {
                                         placeholder="Describe el propósito y objetivos de tu comunidad..."
                                     />
                                 </div>
-
-                                <div className="flex items-center space-x-3">
-                                    <input
-                                        type="checkbox"
-                                        id="esPrivada"
-                                        checked={formComunidad.esPrivada}
-                                        onChange={(e) => setFormComunidad({ ...formComunidad, esPrivada: e.target.checked })}
-                                        className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                                    />
-                                    <label htmlFor="esPrivada" className="text-sm text-slate-700">
-                                        Comunidad privada (solo por invitación)
-                                    </label>
-                                </div>
-
                                 <div className="flex space-x-3 pt-4">
                                     <button
                                         type="button"
@@ -571,20 +545,6 @@ export default function MyCommunitiesPage() {
                                         className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                                     />
                                 </div>
-
-                                <div className="flex items-center space-x-3">
-                                    <input
-                                        type="checkbox"
-                                        id="esPrivadaEdit"
-                                        checked={formComunidad.esPrivada}
-                                        onChange={(e) => setFormComunidad({ ...formComunidad, esPrivada: e.target.checked })}
-                                        className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                                    />
-                                    <label htmlFor="esPrivadaEdit" className="text-sm text-slate-700">
-                                        Comunidad privada (solo por invitación)
-                                    </label>
-                                </div>
-
                                 <div className="flex space-x-3 pt-4">
                                     <button
                                         type="button"
@@ -726,9 +686,6 @@ export default function MyCommunitiesPage() {
                                     <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center mx-auto mb-2 group-hover:bg-emerald-700 group-hover:scale-110 transition-all duration-300">
                                         <MessageCircle className="h-5 w-5 text-white" />
                                     </div>
-                                    <p className="text-2xl font-bold text-emerald-900 group-hover:text-emerald-800 transition-colors duration-300">
-                                        {comunidadSeleccionada.noticias?.length || 0}
-                                    </p>
                                     <p className="text-sm text-emerald-700 group-hover:text-emerald-600 transition-colors duration-300">
                                         {esPropietario(comunidadSeleccionada) ? "Noticias - Crear" : "Noticias"}
                                     </p>
@@ -810,12 +767,6 @@ export default function MyCommunitiesPage() {
                                                 {comunidadSeleccionada.miembros?.length || 0} miembros participando
                                             </span>
                                         </div>
-                                        <div className="flex items-center space-x-3 py-2">
-                                            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                            <span className="text-sm text-slate-600">
-                                                {comunidadSeleccionada.noticias?.length || 0} noticias publicadas
-                                            </span>
-                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -828,30 +779,6 @@ export default function MyCommunitiesPage() {
                                 >
                                     Cerrar
                                 </button>
-                                {esPropietario(comunidadSeleccionada) && (
-                                    <>
-                                        <button
-                                            onClick={() => {
-                                                setMostrarModalDetalles(false)
-                                                abrirModalEditar(comunidadSeleccionada)
-                                            }}
-                                            className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium flex items-center justify-center"
-                                        >
-                                            <Edit3 className="h-4 w-4 mr-2" />
-                                            Editar
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setMostrarModalDetalles(false)
-                                                abrirModalEliminar(comunidadSeleccionada)
-                                            }}
-                                            className="px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium flex items-center justify-center"
-                                        >
-                                            <Trash2 className="h-4 w-4 mr-2" />
-                                            Eliminar
-                                        </button>
-                                    </>
-                                )}
                             </div>
                         </div>
                     </div>
