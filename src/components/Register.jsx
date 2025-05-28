@@ -4,7 +4,6 @@
 import { useState } from "react"
 import { Eye, EyeOff, CheckCircle2 } from "lucide-react"
 import { Link } from "react-router-dom"
-import API from "../api"
 
 export default function Register() {
   const [datosFormulario, setDatosFormulario] = useState({
@@ -117,46 +116,55 @@ export default function Register() {
   }
 
   const manejarEnvio = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    if (validarFormulario()) {
-      setEnviando(true)
-      setErrorGeneral("")
+    if (!validarFormulario()) return;
 
-      try {
-        // Simulación de llamada a API
-        await new Promise((resolve) => setTimeout(resolve, 1500))
+    setEnviando(true);
+    setErrorGeneral("");
 
-        // Llamada real al endpoint de registro
-        await API.post("/register", {
+    try {
+      // Llamada real al endpoint de registro
+      const res = await fetch("http://localhost:5100/usuarios/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           nombre: datosFormulario.nombre,
           username: datosFormulario.nombreUsuario,
           email: datosFormulario.email,
           clave: datosFormulario.contrasena,
           telefono: datosFormulario.telefono,
           descripcion: datosFormulario.descripcion
-        })
+        }),
+      });
 
-        setRegistroExitoso(true)
-        // Resetear formulario después del envío exitoso
-        setDatosFormulario({
-          nombre: "",
-          email: "",
-          descripcion: "",
-          contrasena: "",
-          confirmarContrasena: "",
-          nombreUsuario: "",
-          telefono: "",
-        })
-      } catch (error) {
-        // si el back envía `{ msg: "..." }`, lo capturamos
-        setErrorGeneral(error.response?.data?.msg || "Error inesperado")
-        console.error("Error de registro:", error)
-      } finally {
-        setEnviando(false)
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Si el back devuelve { msg: "..."} o { error: "..." }
+        throw new Error(data.msg || data.error || "Error inesperado en el registro");
       }
+
+      setRegistroExitoso(true);
+
+      // Resetear formulario después del envío exitoso
+      setDatosFormulario({
+        nombre: "",
+        email: "",
+        descripcion: "",
+        contrasena: "",
+        confirmarContrasena: "",
+        nombreUsuario: "",
+        telefono: "",
+      });
+    } catch (error) {
+      setErrorGeneral(error.message);
+      console.error("Error de registro:", error);
+    } finally {
+      setEnviando(false);
     }
-  }
+  };
+
 
   const obtenerFortalezaContrasena = (contrasena) => {
     if (!contrasena) return { fortaleza: 0, etiqueta: "" }
@@ -314,9 +322,8 @@ export default function Register() {
                       name="nombre"
                       value={datosFormulario.nombre}
                       onChange={manejarCambio}
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                        errores.nombre ? "border-red-500 focus:ring-red-200" : "border-gray-300 focus:ring-blue-200"
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${errores.nombre ? "border-red-500 focus:ring-red-200" : "border-gray-300 focus:ring-blue-200"
+                        }`}
                       placeholder="María García"
                     />
                     {errores.nombre && <p className="mt-1 text-sm text-red-500">{errores.nombre}</p>}
@@ -332,11 +339,10 @@ export default function Register() {
                       name="nombreUsuario"
                       value={datosFormulario.nombreUsuario}
                       onChange={manejarCambio}
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                        errores.nombreUsuario
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${errores.nombreUsuario
                           ? "border-red-500 focus:ring-red-200"
                           : "border-gray-300 focus:ring-blue-200"
-                      }`}
+                        }`}
                       placeholder="maria_reportera"
                     />
                     {errores.nombreUsuario && <p className="mt-1 text-sm text-red-500">{errores.nombreUsuario}</p>}
@@ -353,9 +359,8 @@ export default function Register() {
                     name="email"
                     value={datosFormulario.email}
                     onChange={manejarCambio}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                      errores.email ? "border-red-500 focus:ring-red-200" : "border-gray-300 focus:ring-blue-200"
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${errores.email ? "border-red-500 focus:ring-red-200" : "border-gray-300 focus:ring-blue-200"
+                      }`}
                     placeholder="maria.garcia@ejemplo.com"
                   />
                   {errores.email && <p className="mt-1 text-sm text-red-500">{errores.email}</p>}
@@ -371,9 +376,8 @@ export default function Register() {
                     name="telefono"
                     value={datosFormulario.telefono}
                     onChange={manejarCambio}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                      errores.telefono ? "border-red-500 focus:ring-red-200" : "border-gray-300 focus:ring-blue-200"
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${errores.telefono ? "border-red-500 focus:ring-red-200" : "border-gray-300 focus:ring-blue-200"
+                      }`}
                     placeholder="612345678"
                   />
                   {errores.telefono && <p className="mt-1 text-sm text-red-500">{errores.telefono}</p>}
@@ -389,9 +393,8 @@ export default function Register() {
                     value={datosFormulario.descripcion}
                     onChange={manejarCambio}
                     rows="2"
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                      errores.descripcion ? "border-red-500 focus:ring-red-200" : "border-gray-300 focus:ring-blue-200"
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${errores.descripcion ? "border-red-500 focus:ring-red-200" : "border-gray-300 focus:ring-blue-200"
+                      }`}
                     placeholder="Cuéntanos sobre ti y tus intereses en periodismo..."
                   />
                   <div className="flex justify-between mt-1">
@@ -416,11 +419,10 @@ export default function Register() {
                         name="contrasena"
                         value={datosFormulario.contrasena}
                         onChange={manejarCambio}
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                          errores.contrasena
+                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${errores.contrasena
                             ? "border-red-500 focus:ring-red-200"
                             : "border-gray-300 focus:ring-blue-200"
-                        }`}
+                          }`}
                         placeholder="••••••••"
                       />
                       <button
@@ -449,11 +451,10 @@ export default function Register() {
                         name="confirmarContrasena"
                         value={datosFormulario.confirmarContrasena}
                         onChange={manejarCambio}
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                          errores.confirmarContrasena
+                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${errores.confirmarContrasena
                             ? "border-red-500 focus:ring-red-200"
                             : "border-gray-300 focus:ring-blue-200"
-                        }`}
+                          }`}
                         placeholder="••••••••"
                       />
                       <button
@@ -479,8 +480,7 @@ export default function Register() {
                     <div className="flex items-center justify-between mb-1">
                       <div className="text-xs font-medium text-gray-500">Fortaleza de contraseña:</div>
                       <div
-                        className={`text-xs font-medium ${
-                          fortalezaContrasena.fortaleza === 1
+                        className={`text-xs font-medium ${fortalezaContrasena.fortaleza === 1
                             ? "text-red-500"
                             : fortalezaContrasena.fortaleza === 2
                               ? "text-yellow-500"
@@ -489,15 +489,14 @@ export default function Register() {
                                 : fortalezaContrasena.fortaleza === 4
                                   ? "text-green-600"
                                   : ""
-                        }`}
+                          }`}
                       >
                         {fortalezaContrasena.etiqueta}
                       </div>
                     </div>
                     <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
                       <div
-                        className={`h-full ${
-                          fortalezaContrasena.fortaleza === 1
+                        className={`h-full ${fortalezaContrasena.fortaleza === 1
                             ? "bg-red-500 w-1/4"
                             : fortalezaContrasena.fortaleza === 2
                               ? "bg-yellow-500 w-2/4"
@@ -506,7 +505,7 @@ export default function Register() {
                                 : fortalezaContrasena.fortaleza === 4
                                   ? "bg-green-600 w-full"
                                   : "w-0"
-                        }`}
+                          }`}
                       />
                     </div>
                   </div>
@@ -524,9 +523,8 @@ export default function Register() {
                   <button
                     type="submit"
                     disabled={enviando}
-                    className={`w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200 shadow-md hover:shadow-lg ${
-                      enviando ? "opacity-70 cursor-not-allowed" : ""
-                    }`}
+                    className={`w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200 shadow-md hover:shadow-lg ${enviando ? "opacity-70 cursor-not-allowed" : ""
+                      }`}
                   >
                     {enviando ? "Creando cuenta..." : "Crear Cuenta"}
                   </button>

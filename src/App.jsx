@@ -1,73 +1,74 @@
-// src/App.jsx
-import React, { useContext } from 'react';
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate
-} from 'react-router-dom';
+import React, { useContext } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, AuthContext } from "./contexts/AuthContext";
 
-import Navbar from './components/Navbar';
-import Home from './components/Home';
-import Registro from './components/Register';
-import Login from './components/Login';
-import PrincipalPage from './components/PrincipalPage';
-import { AuthContext } from './contexts/AuthContext';
+import Navbar from "./components/Navbar";
+import AllCommunitiesPage from "./components/AllCommunitiesPage";
+import MyCommunitiesPage from "./components/MyCommunitiesPage";
+import Login from "./components/Login";
+import Register from "./components/Register";
+import User from "./components/UserProfile";
+import GeneralNotices from "./components/GeneralNotices";
+import CommunityNotices from "./components/CommunityNotices";
 
 function PrivateRoute({ children }) {
   const { token } = useContext(AuthContext);
-  return token
-    ? children
-    : <Navigate to="/login" replace />;
+  return token ? children : <Navigate to="/login" replace />;
 }
 
 function PublicRoute({ children }) {
   const { token } = useContext(AuthContext);
-  return !token
-    ? children
-    : <Navigate to="/principal" replace />;
+  // si ya estás logueado, te mando a "/"
+  return !token ? children : <Navigate to="/" replace />;
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Navbar />
+    <AuthProvider>
+      <BrowserRouter>
+        <Navbar />
 
-      <Routes>
-        {/* 1. Home público */}
-        <Route path="/" element={<Home />} />
+        <Routes>
+          {/* 1. "/" → todas las comunidades, siempre */}
+          <Route path="/" element={<AllCommunitiesPage />} />
 
-        {/* 2. Registro y login solo para no autenticados */}
-        <Route
-          path="/registro"
-          element={
-            <PublicRoute>
-              <Registro />
-            </PublicRoute>
-          }
-        />
-        <Route
-          path="/login"
-          element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          }
-        />
+          {/* 2. Registro / Login solo para no autenticados */}
+          <Route
+            path="/registro"
+            element={<PublicRoute><Register /></PublicRoute>}
+          />
+          <Route
+            path="/login"
+            element={<PublicRoute><Login /></PublicRoute>}
+          />
 
-        {/* 3. PrincipalPage: ruta privada */}
-        <Route
-          path="/principal"
-          element={
-            <PrivateRoute>
-              <PrincipalPage />
-            </PrivateRoute>
-          }
-        />
+          {/* 3. "/comunidades" → Mis Comunidades, solo autenticados */}
+          <Route
+            path="/comunidades"
+            element={<PrivateRoute><MyCommunitiesPage /></PrivateRoute>}
+          />
+          <Route
+            path="/usuario"
+            element={<PrivateRoute><User /></PrivateRoute>}
+          />
+          <Route
+            path="/noticias"
+            element={<PrivateRoute><GeneralNotices /></PrivateRoute>}
+          />
 
-        {/* 4. Cualquier otra ruta → Home público */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+          {/* aquí la ruta que faltaba */}
+          <Route
+            path="/comunidades/:communityId/noticias"
+            element={
+              <PrivateRoute>
+                <CommunityNotices />
+              </PrivateRoute>
+            }
+          />
+
+
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }

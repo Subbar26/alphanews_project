@@ -3,12 +3,11 @@
 import { useState, useContext } from "react"
 import { Eye, EyeOff, CheckCircle2, User, Lock } from 'lucide-react'
 import { Link, useNavigate } from "react-router-dom"
-import API from "../api"
 import { AuthContext } from "../contexts/AuthContext"
 
 export default function Login() {
   const navigate = useNavigate()
-  const { login } = useContext(AuthContext)
+  const { token, login } = useContext(AuthContext);
 
   const [datosFormulario, setDatosFormulario] = useState({
     identificador: "", // Puede ser email o nombre de usuario
@@ -59,48 +58,31 @@ export default function Login() {
   }
 
   const manejarEnvio = async (e) => {
-    e.preventDefault()
-    setErrorGeneral("")
-    setErrores({ identificador: "", contrasena: "" }) 
-    if (!validarFormulario()) return
-
-    setEnviando(true)
+    e.preventDefault();
+    if (!validarFormulario()) return;
+    setEnviando(true);
     try {
-      const { data } = await API.post('/login', {
-        username: datosFormulario.identificador,
-        clave: datosFormulario.contrasena
-      })
-
-      login(data.token)
-      setLoginExitoso(true)
+      const res = await fetch("http://localhost:5100/usuarios/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { Authorization: `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          username: datosFormulario.identificador,
+          clave: datosFormulario.contrasena
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.msg || data.error || "Error");
+      login(data.token);
+      navigate("/");
     } catch (err) {
-      setErrorGeneral(err.response?.data?.msg || 'Error al iniciar sesión')
+      setErrorGeneral(err.message);
     } finally {
-      setEnviando(false)
+      setEnviando(false);
     }
-  }
-
-  if (loginExitoso) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden max-w-md w-full mx-auto p-8">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="h-8 w-8 text-white" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">¡Inicio de Sesión Exitoso!</h2>
-            <p className="text-gray-600 mb-6">Has iniciado sesión correctamente. Bienvenido de nuevo a AlphaNews.</p>
-            <button
-              onClick={() => navigate('/principal')}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200 shadow-md hover:shadow-lg"
-            >
-              Ir al Panel Principal
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
