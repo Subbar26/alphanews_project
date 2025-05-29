@@ -152,21 +152,18 @@ export default function CommunityNotices() {
                 descripcion: formNoticia.descripcion,
                 texto: formNoticia.texto,
                 autor: user.id,
-                comunidad: communityId,    // <-- aquí garantizamos pasar el ID de la comunidad
+                comunidad: communityId,
             };
-            const { data } = await axios.post(
-                `${BASE}/noticias`,
-                payload,
-                { headers }
-            );
-            setNoticias(prev => [data, ...prev]);
+
+            await axios.post(`${BASE}/noticias`, payload, { headers });
+            // en lugar de añadir “data” a mano, recargamos la lista completa
+            await cargarNoticiasComunidad();
             setFormNoticia({ titulo: "", descripcion: "", texto: "" });
             setMostrarModalCrear(false);
         } catch (err) {
             setError(err.response?.data?.error || "Error al crear noticia");
         }
     };
-
 
     // Agregar esta función para cargar detalle de noticia por ID
     // Dentro de tu componente:
@@ -291,9 +288,16 @@ export default function CommunityNotices() {
         }
     }
 
+
+    const contarLikes = noticia =>
+        noticia.calificaciones?.filter(c => c.like).length || 0
+
+    const contarDislikes = noticia =>
+        noticia.calificaciones?.filter(c => !c.like).length || 0
+
     const getEstadisticas = () => {
         const total = noticias.length
-        const totalLikes = noticias.reduce((acc, n) => acc + (n.likes?.length || 0), 0)
+        const totalLikes = noticias.reduce((acc, n) => acc + contarLikes(n), 0)
         const totalComentarios = noticias.reduce((acc, n) => acc + (n.comentarios?.length || 0), 0)
         const autoresUnicos = new Set(noticias.map((n) => n.autor?._id)).size
 
@@ -770,7 +774,7 @@ export default function CommunityNotices() {
                                                 </div>
                                                 <div className="flex items-center space-x-1">
                                                     <Heart className="h-4 w-4" />
-                                                    <span>{noticiaSeleccionada.likes?.length || 0} likes</span>
+                                                    <span>{contarLikes(noticiaSeleccionada)} me gusta</span>
                                                 </div>
                                                 <div className="flex items-center space-x-1">
                                                     <MessageCircle className="h-4 w-4" />

@@ -105,13 +105,6 @@ export default function Navbar() {
                     >
                       <User className="h-4 w-4 mr-3" /> Mi Perfil
                     </Link>
-                    <Link
-                      to="/configuracion"
-                      onClick={cerrarMenus}
-                      className="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <Settings className="h-4 w-4 mr-3" /> Configuración
-                    </Link>
                     <div className="border-t border-slate-100 mt-2 pt-2">
                       <button
                         onClick={handleLogout}
@@ -184,9 +177,6 @@ export default function Navbar() {
                 </Link>
                 <Link to="/usuario" onClick={cerrarMenus} className="flex items-center px-3 py-3 rounded-lg text-base font-medium text-slate-700 hover:text-blue-600 hover:bg-blue-50 transition-colors">
                   <User className="h-5 w-5 mr-3" /> Mi Perfil
-                </Link>
-                <Link to="/configuracion" onClick={cerrarMenus} className="flex items-center px-3 py-3 rounded-lg text-base font-medium text-slate-700 hover:text-blue-600 hover:bg-blue-50 transition-colors">
-                  <Settings className="h-5 w-5 mr-3" /> Configuración
                 </Link>
                 <div className="border-t border-slate-200 pt-4 mt-4">
                   <button onClick={handleLogout} className="flex items-center w-full px-3 py-3 rounded-lg text-base font-medium text-red-600 hover:bg-red-50 transition-colors">
